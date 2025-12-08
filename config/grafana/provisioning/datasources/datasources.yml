@@ -1,0 +1,52 @@
+# Grafana Datasource Provisioning
+# Automatically configure datasources on startup
+
+apiVersion: 1
+
+datasources:
+  # =============================================================================
+  # Prometheus - Metrics
+  # =============================================================================
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      httpMethod: POST
+      manageAlerts: true
+      prometheusType: Prometheus
+      prometheusVersion: "2.47.0"
+
+  # =============================================================================
+  # Jaeger - Traces
+  # =============================================================================
+  - name: Jaeger
+    type: jaeger
+    access: proxy
+    url: http://jaeger:16686
+    editable: false
+    jsonData:
+      tracesToLogsV2:
+        datasourceUid: ''
+        spanStartTimeShift: ''
+        spanEndTimeShift: ''
+        tags: []
+        filterByTraceID: false
+        filterBySpanID: false
+      tracesToMetrics:
+        datasourceUid: Prometheus
+        spanStartTimeShift: ''
+        spanEndTimeShift: ''
+        tags: []
+        queries: []
+      nodeGraph:
+        enabled: true
+      traceQuery:
+        timeShiftEnabled: true
+        spanStartTimeShift: '1h'
+        spanEndTimeShift: '-1h'
+      spanBar:
+        type: 'None'
+

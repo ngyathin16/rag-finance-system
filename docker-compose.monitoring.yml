@@ -1,0 +1,153 @@
+# Docker Compose configuration for RAG Finance System Monitoring Stack
+#
+# This file sets up the observability infrastructure:
+# - Jaeger: Distributed tracing backend (UI on port 16686)
+# - Prometheus: Metrics collection and storage (UI on port 9090)
+# - Grafana: Metrics visualization and dashboards (UI on port 3000)
+#
+# Usage:
+#   docker-compose -f docker-compose.monitoring.yml up -d
+#
+# Access UIs:
+#   - Jaeger:     http://localhost:16686
+#   - Prometheus: http://localhost:9090
+#   - Grafana:    http://localhost:3000 (admin/admin)
+#
+# Environment Variables for Application:
+#   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+
+version: '3.8'
+
+services:
+  # =============================================================================
+  # Jaeger - Distributed Tracing
+  # =============================================================================
+  jaeger:
+    image: jaegertracing/all-in-one:1.52
+    container_name: rag-finance-jaeger
+    restart: unless-stopped
+    environment:
+      # Enable OTLP receiver
+      - COLLECTOR_OTLP_ENABLED=true
+      # Memory storage (for development)
+      - SPAN_STORAGE_TYPE=memory
+      # Sampling configuration
+      - SAMPLING_STRATEGIES_FILE=/etc/jaeger/sampling_strategies.json
+    ports:
+      # OTLP gRPC receiver
+      - "4317:4317"
+      # OTLP HTTP receiver
+      - "4318:4318"
+      # Jaeger UI
+      - "16686:16686"
+      # Jaeger thrift compact (legacy)
+      - "6831:6831/udp"
+      # Jaeger thrift binary (legacy)
+      - "6832:6832/udp"
+      # Jaeger HTTP collector
+      - "14268:14268"
+      # Jaeger admin/health
+      - "14269:14269"
+    volumes:
+      - ./config/jaeger:/etc/jaeger:ro
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:14269/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - monitoring
+
+  # =============================================================================
+  # Prometheus - Metrics Collection
+  # =============================================================================
+  prometheus:
+    image: prom/prometheus:v2.47.2
+    container_name: rag-finance-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+      - '--web.enable-remote-write-receiver'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus:/etc/prometheus:ro
+      - prometheus_data:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - monitoring
+
+  # =============================================================================
+  # Grafana - Visualization
+  # =============================================================================
+  grafana:
+    image: grafana/grafana:10.2.2
+    container_name: rag-finance-grafana
+    restart: unless-stopped
+    environment:
+      # Default admin credentials (change in production!)
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      # Allow anonymous access for development
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      # Install plugins
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+      # Server configuration
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      jaeger:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - monitoring
+
+  # =============================================================================
+  # OpenTelemetry Collector (Optional - for production)
+  # =============================================================================
+  # Uncomment this section if you need advanced telemetry routing
+  # otel-collector:
+  #   image: otel/opentelemetry-collector-contrib:0.88.0
+  #   container_name: rag-finance-otel-collector
+  #   restart: unless-stopped
+  #   command: ["--config=/etc/otel-collector-config.yml"]
+  #   ports:
+  #     - "4317:4317"     # OTLP gRPC
+  #     - "4318:4318"     # OTLP HTTP
+  #     - "8888:8888"     # Prometheus metrics exposed by the collector
+  #     - "8889:8889"     # Prometheus exporter metrics
+  #   volumes:
+  #     - ./config/otel-collector/otel-collector-config.yml:/etc/otel-collector-config.yml:ro
+  #   networks:
+  #     - monitoring
+
+networks:
+  monitoring:
+    driver: bridge
+    name: rag-finance-monitoring
+
+volumes:
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+

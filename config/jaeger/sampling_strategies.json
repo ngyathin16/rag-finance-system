@@ -1,0 +1,14 @@
+{
+  "service_strategies": [
+    {
+      "service": "rag-finance-system",
+      "type": "probabilistic",
+      "param": 1.0
+    }
+  ],
+  "default_strategy": {
+    "type": "probabilistic",
+    "param": 0.5
+  }
+}
+

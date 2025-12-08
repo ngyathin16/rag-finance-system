@@ -1,0 +1,256 @@
+---
+rule_type: always
+description: Production-grade multi-agent RAG system for financial document Q&A
+---
+
+# RAG Finance System - AI Assistant Rules
+
+## 🎯 Project Overview
+
+**Purpose:** Self-correcting multi-agent RAG system for financial document Q&A  
+**Target Audience:** Hong Kong finance/banking employers (senior AI engineer roles)  
+**Key Differentiators:** Production monitoring, self-correction, cost tracking, drift detection
+
+### Tech Stack
+- **LLM Framework:** LangChain (with structured outputs)
+- **Vector Store:** Chroma (local dev), Pinecone (production)
+- **Embeddings:** OpenAI text-embedding-3-small
+- **LLM Models:** 
+  - GPT-4o-mini (relevance & fact-checking, cost-optimized)
+  - GPT-4-turbo-preview (generation, quality-focused)
+- **Observability:** OpenTelemetry + Jaeger + Prometheus + Grafana
+- **API Framework:** FastAPI with async endpoints
+- **Deployment:** Docker + Railway/Render
+- **Testing:** pytest, pytest-asyncio, pytest-mock
+
+---
+
+## 🏗️ Architecture Patterns
+
+### Multi-Agent Pipeline
+1. **Query Processor** → Intent classification & query rewriting
+2. **Retrieval Pipeline** → Hybrid search (vector + keyword)
+3. **Relevance Agent** → Filters documents, outputs top 3-5 with scores
+4. **Generator Agent** → Synthesizes answer with citations [1][2]
+5. **Fact-Check Agent** → Validates claims, triggers correction if needed
+6. **Self-Correction Loop** → Max 2 retries on validation failure
+
+### Key Design Principles
+- **Observability-first:** Every component wrapped in OpenTelemetry spans
+- **Cost tracking:** Token counting and cost calculation for every LLM call
+- **Structured outputs:** Use Pydantic v2 models for all agent responses
+- **Async by default:** FastAPI endpoints use async/await
+- **Type safety:** Mandatory type hints on all functions
+- **Error recovery:** Graceful degradation with fallback responses
+
+---
+
+## 💻 Code Conventions
+
+### Python Style
+- **Formatting:** Black (line length 100)
+- **Imports:** Order: stdlib → third-party → local (with blank lines between)
+- **Type Hints:** Required on all function signatures
+- **Docstrings:** Google style, include Args, Returns, Raises
+- **Naming:**
+  - Classes: PascalCase (e.g., `RelevanceAgent`)
+  - Functions/methods: snake_case (e.g., `score_documents`)
+  - Constants: UPPER_SNAKE_CASE (e.g., `MAX_RETRIES`)
+  - Private: prefix with underscore (e.g., `_extract_citations`)
+
+### Pydantic Models
+from pydantic import BaseModel, Field
+from typing import List, Literal
+
+class RelevanceScore(BaseModel):
+"""Structured output for relevance scoring."""
+score: float = Field(
+description="Relevance score 0-1",
+ge=0.0,
+le=1.0
+)
+reasoning: str = Field(description="Brief explanation")
+
+### LangChain Structured Outputs
+- Always use `.with_structured_output(PydanticModel)` for agent chains
+- Never parse raw text from LLM responses
+- Example:
+chain = prompt | llm.with_structured_output(RelevanceScore)
+result = chain.invoke({"query": query, "document": doc})
+
+### OpenTelemetry Spans
+Wrap all agent methods:
+from opentelemetry import trace
+
+tracer = trace.get_tracer(name)
+
+def process_query(self, query: str):
+with tracer.start_as_current_span("process_query") as span:
+span.set_attribute("query_length", len(query))
+# ... processing logic
+span.set_attribute("result_count", len(results))
+
+### Cost Tracking
+Track tokens for every LLM call:
+def calculate_cost(input_text: str, output_text: str, model: str) -> dict:
+input_tokens = len(tokenizer.encode(input_text))
+output_tokens = len(tokenizer.encode(output_text))
+# Calculate cost based on model pricing
+return {"tokens": input_tokens + output_tokens, "cost_usd": total_cost}
+
+---
+
+## 🧪 Testing Requirements
+
+### Test Structure
+- `tests/agents/` → Unit tests for each agent
+- `tests/integration/` → Full pipeline tests
+- `tests/evaluation/` → Evaluation on FinQA dataset
+- Mock all LLM calls using `pytest-mock`
+
+### Example Test Pattern
+import pytest
+from unittest.mock import Mock
+
+def test_relevance_agent_filters_low_scores(mocker):
+"""Test that relevance agent filters documents below threshold."""
+# Mock LLM response
+mock_llm = mocker.patch("langchain_openai.ChatOpenAI")
+mock_llm.return_value.with_structured_output.return_value.invoke.return_value =
+RelevanceScore(score=0.5, reasoning="Tangentially related")
+agent = RelevanceAgent()
+results = agent.score_documents(query="test", documents=[...], threshold=0.7)
+
+assert len(results) == 0  # Should filter out score 0.5
+
+---
+
+## 📊 Monitoring & Observability
+
+### Metrics to Track
+- Query latency (p50, p95, p99)
+- Token usage per query
+- Cost per query
+- Correction rate (% of queries requiring self-correction)
+- Verification status distribution (VERIFIED, UNCERTAIN, FALSE)
+- Document retrieval count
+- Cache hit rate
+
+### Logging Standards
+- Use Python `logging` module
+- Log levels:
+  - DEBUG: Detailed agent reasoning
+  - INFO: Query processing milestones
+  - WARNING: Fallback to defaults, retries triggered
+  - ERROR: Exceptions, validation failures
+- Include correlation IDs for request tracing
+
+---
+
+## 🚀 Deployment Considerations
+
+### Environment Variables
+Required in `.env`:
+OPENAI_API_KEY=sk-...
+PINECONE_API_KEY=...
+OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
+ENVIRONMENT=development|staging|production
+
+### Docker Best Practices
+- Multi-stage builds (builder + runtime)
+- Non-root user in container
+- Health check endpoint at `/health`
+- Graceful shutdown handling
+
+---
+
+## 📝 Documentation Standards
+
+### README Updates
+When adding new features:
+1. Update Architecture section if components added
+2. Add usage example for new endpoints
+3. Update evaluation metrics if improved
+4. Document any new environment variables
+
+### Inline Comments
+- Explain WHY, not WHAT (code should be self-documenting)
+- Document non-obvious algorithmic choices
+- Flag TODOs with GitHub issue references
+
+---
+
+## 🎓 Financial Domain Knowledge
+
+### SEC Filing Structure
+- **10-K:** Annual report (Item 1: Business, Item 1A: Risk Factors, Item 7: MD&A)
+- **10-Q:** Quarterly report (similar structure, less detailed)
+- **8-K:** Current events (material events like earnings)
+
+### Financial Metrics to Extract
+- Revenue, Net Income, EPS
+- Operating Margin, Gross Margin
+- Year-over-year growth percentages
+- Guidance (forward-looking statements)
+
+### Citation Requirements
+- Always include document type and period: "[Apple 10-K Q3 2024]"
+- For numerical claims, cite specific section: "[Item 8: Financial Statements]"
+
+---
+
+## ⚠️ Common Pitfalls to Avoid
+
+1. **Don't concatenate large documents:** Chunk before passing to LLM
+2. **Don't skip cost tracking:** Every LLM call should log tokens/cost
+3. **Don't use generic error messages:** Include context for debugging
+4. **Don't hardcode API keys:** Always use environment variables
+5. **Don't ignore rate limits:** Implement exponential backoff for retries
+6. **Don't skip input validation:** Validate all user inputs at API layer
+
+---
+
+## 🔧 Cursor-Specific Tips
+
+### Using Composer Mode (Cmd+I)
+- Select multiple related files before invoking
+- Reference files with `@filename.py` in prompts
+- Use for cross-file refactoring (e.g., "Add cost tracking to all agents")
+
+### Context Management
+- Use `@Codebase` for broad questions about architecture
+- Use `@filename` for file-specific changes
+- Use `@docs` to reference LangChain/FastAPI documentation
+
+### Incremental Development
+- Build one agent at a time with tests
+- Commit after each working component
+- Use Cursor chat to generate tests before implementation
+
+---
+
+## 📚 Key References
+
+- LangChain Structured Output: https://python.langchain.com/docs/modules/model_io/output_parsers/
+- Pydantic V2 Migration: https://docs.pydantic.dev/latest/migration/
+- OpenTelemetry Python: https://opentelemetry.io/docs/languages/python/
+- FastAPI Best Practices: https://fastapi.tiangolo.com/async/
+- SEC EDGAR API: https://www.sec.gov/edgar/sec-api-documentation
+
+---
+
+## 🎯 Success Criteria
+
+This project is portfolio-ready when:
+- ✅ All 3 agents working with self-correction loop
+- ✅ Jaeger traces visible for end-to-end queries
+- ✅ Cost tracking dashboard showing real-time spend
+- ✅ Evaluation report with metrics on FinQA test set
+- ✅ Docker deployment working locally
+- ✅ Live demo deployed on Railway/Render
+- ✅ Comprehensive README with architecture diagram
+- ✅ 5-7 minute demo video recorded
+
+---
+
+*Last updated: 2025-11-25*

@@ -1,0 +1,18 @@
+# Grafana Dashboard Provisioning
+# Automatically load dashboards from the specified path
+
+apiVersion: 1
+
+providers:
+  - name: 'RAG Finance Dashboards'
+    orgId: 1
+    folder: 'RAG Finance System'
+    folderUid: 'rag-finance'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false
+

@@ -1,0 +1,68 @@
+# Prometheus Configuration for RAG Finance System
+# 
+# This configuration scrapes metrics from:
+# - Prometheus itself (for monitoring the monitor)
+# - Jaeger (for tracing infrastructure metrics)
+# - Application metrics endpoint (when available)
+
+global:
+  scrape_interval: 15s          # Default scrape interval
+  evaluation_interval: 15s      # Evaluate rules every 15 seconds
+  scrape_timeout: 10s           # Timeout for scrape requests
+
+  # Attach these labels to all time series
+  external_labels:
+    monitor: 'rag-finance-monitoring'
+    environment: 'development'
+
+# Alertmanager configuration (uncomment when using alerts)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#           - alertmanager:9093
+
+# Rule files (alerting and recording rules)
+# rule_files:
+#   - /etc/prometheus/rules/*.yml
+
+scrape_configs:
+  # =============================================================================
+  # Prometheus self-monitoring
+  # =============================================================================
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+
+  # =============================================================================
+  # Jaeger metrics
+  # =============================================================================
+  - job_name: 'jaeger'
+    static_configs:
+      - targets: ['jaeger:14269']
+        labels:
+          service: 'jaeger'
+
+  # =============================================================================
+  # RAG Finance Application metrics
+  # =============================================================================
+  # Uncomment and configure when the application exposes a /metrics endpoint
+  # - job_name: 'rag-finance-app'
+  #   static_configs:
+  #     - targets: ['host.docker.internal:8000']
+  #       labels:
+  #         service: 'rag-finance-system'
+  #   metrics_path: '/metrics'
+  #   scrape_interval: 10s
+
+  # =============================================================================
+  # OpenTelemetry Collector metrics (if using)
+  # =============================================================================
+  # - job_name: 'otel-collector'
+  #   static_configs:
+  #     - targets: ['otel-collector:8888']
+  #       labels:
+  #         service: 'otel-collector'
+
