@@ -15,9 +15,9 @@ services:
     dockerfilePath: ./Dockerfile
     plan: starter  # Change to 'standard' or 'pro' for production
     region: oregon  # Options: oregon, frankfurt, singapore
-    branch: main
+    branch: master  # Changed to match your branch name
     
-    # Auto-deploy on push to main branch
+    # Auto-deploy on push to master branch
     autoDeploy: true
     
     # Health check configuration
@@ -68,9 +68,7 @@ services:
       mountPath: /app/data
       sizeGB: 1
     
-    # Build and start commands
-    buildCommand: echo "Using Dockerfile build"
-    startCommand: uvicorn src.api.main:app --host 0.0.0.0 --port $PORT
+    # Docker will use CMD from Dockerfile - no startCommand needed
     
     # Resource limits
     scaling:
