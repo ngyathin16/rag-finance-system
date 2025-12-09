@@ -48,14 +48,14 @@ scrape_configs:
   # =============================================================================
   # RAG Finance Application metrics
   # =============================================================================
-  # Uncomment and configure when the application exposes a /metrics endpoint
-  # - job_name: 'rag-finance-app'
-  #   static_configs:
-  #     - targets: ['host.docker.internal:8000']
-  #       labels:
-  #         service: 'rag-finance-system'
-  #   metrics_path: '/metrics'
-  #   scrape_interval: 10s
+  - job_name: 'rag-finance-app'
+    static_configs:
+      - targets: ['rag-api:8000']
+        labels:
+          service: 'rag-finance-system'
+          environment: 'development'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
 
   # =============================================================================
   # OpenTelemetry Collector metrics (if using)

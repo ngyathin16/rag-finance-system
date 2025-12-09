@@ -1,0 +1,120 @@
+# =============================================================================
+# Render Blueprint Configuration
+# =============================================================================
+# This file configures the deployment of RAG Finance System on Render
+# Documentation: https://render.com/docs/blueprint-spec
+# =============================================================================
+
+services:
+  # =============================================================================
+  # Main API Service
+  # =============================================================================
+  - type: web
+    name: rag-finance-api
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter  # Change to 'standard' or 'pro' for production
+    region: oregon  # Options: oregon, frankfurt, singapore
+    branch: main
+    
+    # Auto-deploy on push to main branch
+    autoDeploy: true
+    
+    # Health check configuration
+    healthCheckPath: /health
+    
+    # Environment variables
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: 1
+      
+      - key: PYTHONDONTWRITEBYTECODE
+        value: 1
+      
+      - key: VECTOR_STORE_MODE
+        value: chroma
+      
+      - key: MAX_CORRECTIONS
+        value: 2
+      
+      - key: LOG_LEVEL
+        value: INFO
+      
+      - key: API_HOST
+        value: 0.0.0.0
+      
+      - key: API_PORT
+        value: 10000
+      
+      - key: OTEL_SERVICE_NAME
+        value: rag-finance-system
+      
+      - key: ENABLE_TRACING
+        value: false
+      
+      - key: ENABLE_METRICS
+        value: true
+      
+      # Secrets (set these in Render dashboard)
+      - key: OPENAI_API_KEY
+        sync: false  # Must be set manually in Render dashboard
+      
+      - key: PINECONE_API_KEY
+        sync: false  # Optional, only if using Pinecone
+    
+    # Disk for persistent storage (ChromaDB data)
+    disk:
+      name: chroma-data
+      mountPath: /app/data
+      sizeGB: 1
+    
+    # Build and start commands
+    buildCommand: echo "Using Dockerfile build"
+    startCommand: uvicorn src.api.main:app --host 0.0.0.0 --port $PORT
+    
+    # Resource limits
+    scaling:
+      minInstances: 1
+      maxInstances: 3
+      targetMemoryPercent: 80
+      targetCPUPercent: 80
+
+# =============================================================================
+# Optional: Background Worker Service
+# =============================================================================
+# Uncomment if you need a background worker for async tasks
+#
+#  - type: worker
+#    name: rag-finance-worker
+#    env: docker
+#    dockerfilePath: ./Dockerfile
+#    plan: starter
+#    region: oregon
+#    branch: main
+#    
+#    envVars:
+#      - key: PYTHONUNBUFFERED
+#        value: 1
+#      
+#      - key: OPENAI_API_KEY
+#        sync: false
+#    
+#    startCommand: python scripts/worker.py
+
+# =============================================================================
+# Databases (if needed in the future)
+# =============================================================================
+# Uncomment to add PostgreSQL or Redis
+#
+# databases:
+#   - name: rag-postgres
+#     databaseName: rag_finance
+#     user: rag_user
+#     plan: starter
+#     region: oregon
+#
+# - name: rag-redis
+#   plan: starter
+#   region: oregon
+#   maxmemoryPolicy: allkeys-lru
+

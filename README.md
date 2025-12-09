@@ -45,9 +45,41 @@ Query → Query Processor → Retrieval Pipeline → Relevance Agent
 - Python 3.10+
 - OpenAI API key
 - (Optional) Pinecone account for production vector store
-- (Optional) Docker for observability stack (Jaeger, Prometheus, Grafana)
+- (Optional) Docker & Docker Compose for containerized deployment
 
-### Installation
+### Option 1: Docker Deployment (Recommended)
+
+**Quick Start with Docker:**
+
+```bash
+# 1. Create environment file
+cat > .env << EOF
+OPENAI_API_KEY=sk-your-key-here
+VECTOR_STORE_MODE=chroma
+MAX_CORRECTIONS=2
+LOG_LEVEL=INFO
+EOF
+
+# 2. Start all services (API + Observability Stack)
+docker-compose up -d
+
+# 3. Access services
+# - API: http://localhost:8000
+# - API Docs: http://localhost:8000/docs
+# - Jaeger: http://localhost:16686
+# - Prometheus: http://localhost:9090
+# - Grafana: http://localhost:3000 (admin/admin)
+```
+
+**Windows Users:**
+```cmd
+# Run the automated setup script
+start-docker.bat
+```
+
+**For detailed Docker setup, see [DOCKER_SETUP.md](DOCKER_SETUP.md)**
+
+### Option 2: Local Installation
 
 1. **Clone the repository**
 
@@ -542,16 +574,24 @@ print(result.citations)
 
 ### Observability Stack
 
-Start the observability stack with Docker Compose:
+The complete observability stack is included in the Docker deployment:
 
 ```bash
+# Start all services (API + Monitoring)
 docker-compose up -d
+
+# Or use the quick start script (Windows)
+start-docker.bat
 ```
 
 Access dashboards:
+- **RAG API:** http://localhost:8000 (API endpoints)
+- **API Docs:** http://localhost:8000/docs (Swagger UI)
 - **Jaeger UI:** http://localhost:16686 (distributed tracing)
-- **Prometheus:** http://localhost:9090 (metrics)
-- **Grafana:** http://localhost:3000 (dashboards)
+- **Prometheus:** http://localhost:9090 (metrics collection)
+- **Grafana:** http://localhost:3000 (dashboards - admin/admin)
+
+**For detailed Docker setup and monitoring guide, see [DOCKER_SETUP.md](DOCKER_SETUP.md)**
 
 ---
 
@@ -582,20 +622,393 @@ rag-finance-system/
 │   ├── test_baseline_rag.py
 │   ├── test_ingest_sec_data.py
 │   └── test_process_documents.py
-├── config/               # Configuration files
+├── config/
+│   ├── prometheus/       # Prometheus configuration
+│   ├── grafana/          # Grafana dashboards & datasources
+│   └── jaeger/           # Jaeger sampling strategies
+├── Dockerfile            # Multi-stage Docker build
+├── docker-compose.yml    # Main orchestration file
+├── docker-compose.dev.yml # Development overrides
+├── .dockerignore         # Docker build exclusions
+├── start-docker.bat      # Windows quick start script
+├── DOCKER_SETUP.md       # Comprehensive Docker guide
 └── requirements.txt      # Python dependencies
 ```
 
 ---
 
+## ☁️ Cloud Deployment
+
+Deploy the RAG Finance System to production with Railway or Render for a scalable, managed hosting solution.
+
+### Prerequisites
+
+Before deploying, ensure you have:
+- OpenAI API key ([Get one here](https://platform.openai.com/api-keys))
+- (Optional) Pinecone API key for production vector storage ([Sign up](https://www.pinecone.io/))
+- Git repository with the code
+- GitHub account (for CI/CD)
+
+### Option 1: Railway Deployment
+
+**Quick Deploy (Recommended):**
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template)
+
+**Manual Deployment:**
+
+1. **Install Railway CLI:**
+```bash
+npm install -g @railway/cli
+```
+
+2. **Login to Railway:**
+```bash
+railway login
+```
+
+3. **Initialize project:**
+```bash
+railway init
+```
+
+4. **Set environment variables:**
+```bash
+railway variables set OPENAI_API_KEY=sk-your-key-here
+railway variables set VECTOR_STORE_MODE=chroma
+railway variables set MAX_CORRECTIONS=2
+railway variables set LOG_LEVEL=INFO
+```
+
+5. **Deploy:**
+```bash
+railway up
+```
+
+6. **Link a custom domain (optional):**
+```bash
+railway domain
+```
+
+**Railway Configuration:**
+
+The `railway.json` file includes:
+- Health check at `/health`
+- Auto-restart on failure
+- Environment-specific configurations (production/staging)
+- Dockerfile-based builds
+
+**Cost Estimate (Railway):**
+- **Starter Plan**: $5/month + usage
+- **Developer Plan**: $20/month (includes $5 credit)
+- **Estimated monthly cost**: ~$10-30 depending on usage
+- Free trial available with $5 credit
+
+### Option 2: Render Deployment
+
+**Quick Deploy:**
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)
+
+**Manual Deployment:**
+
+1. **Create a new Web Service:**
+   - Go to [Render Dashboard](https://dashboard.render.com/)
+   - Click "New +" → "Web Service"
+   - Connect your GitHub repository
+
+2. **Configure service:**
+   - **Name**: `rag-finance-api`
+   - **Environment**: `Docker`
+   - **Region**: `Oregon (US West)` or closest to you
+   - **Branch**: `main`
+   - **Dockerfile Path**: `./Dockerfile`
+
+3. **Set environment variables in Render dashboard:**
+
+| Variable | Value | Required |
+|----------|-------|----------|
+| `OPENAI_API_KEY` | `sk-your-key-here` | ✅ Yes |
+| `VECTOR_STORE_MODE` | `chroma` | ✅ Yes |
+| `MAX_CORRECTIONS` | `2` | ✅ Yes |
+| `LOG_LEVEL` | `INFO` | No |
+| `API_HOST` | `0.0.0.0` | ✅ Yes |
+| `API_PORT` | `10000` | ✅ Yes |
+| `PINECONE_API_KEY` | `your-pinecone-key` | No (only if using Pinecone) |
+
+4. **Add persistent disk (for ChromaDB):**
+   - In service settings, add a disk:
+     - **Name**: `chroma-data`
+     - **Mount Path**: `/app/data`
+     - **Size**: 1 GB (can scale up)
+
+5. **Deploy:**
+   - Click "Create Web Service"
+   - Render will automatically build and deploy
+
+**Alternative: Use Blueprint (Infrastructure as Code):**
+
+The included `render.yaml` blueprint allows one-click deployment:
+
+```bash
+# Deploy using render.yaml
+render blueprint deploy
+```
+
+**Cost Estimate (Render):**
+- **Starter Plan**: $7/month per service
+- **Standard Plan**: $25/month (recommended for production)
+- **Persistent Disk**: $0.25/GB/month
+- **Estimated monthly cost**: ~$8-30 depending on plan
+- Free tier available (with limitations)
+
+### CI/CD Pipeline
+
+The included GitHub Actions workflow (`.github/workflows/deploy.yml`) automatically:
+
+1. **On Pull Request:**
+   - Runs linting checks
+   - Executes full test suite
+   - Builds Docker image
+   - Reports coverage
+
+2. **On Push to Main:**
+   - Runs all PR checks
+   - Builds and pushes Docker image
+   - Deploys to Railway (if configured)
+   - Deploys to Render (if configured)
+   - Performs health checks
+   - Notifies on failure
+
+**Required GitHub Secrets:**
+
+Add these in your repository settings (`Settings` → `Secrets and variables` → `Actions`):
+
+| Secret | Description | Where to Get |
+|--------|-------------|--------------|
+| `OPENAI_API_KEY` | OpenAI API key | [OpenAI Dashboard](https://platform.openai.com/api-keys) |
+| `RAILWAY_TOKEN` | Railway API token | [Railway Account Settings](https://railway.app/account/tokens) |
+| `RAILWAY_PROJECT_ID` | Railway project ID | Railway project settings |
+| `RAILWAY_URL` | Railway deployment URL | `https://your-app.railway.app` |
+| `RENDER_API_KEY` | Render API key | [Render Account Settings](https://dashboard.render.com/account/api-keys) |
+| `RENDER_SERVICE_ID` | Render service ID | From service URL |
+| `RENDER_URL` | Render deployment URL | `https://your-app.onrender.com` |
+| `DOCKER_USERNAME` | Docker Hub username (optional) | [Docker Hub](https://hub.docker.com/) |
+| `DOCKER_PASSWORD` | Docker Hub password (optional) | Docker Hub settings |
+
+### Environment Variables Reference
+
+Create a `.env` file based on `.env.example`:
+
+```bash
+# Copy the example file
+cp .env.example .env
+
+# Edit with your values
+nano .env  # or use your preferred editor
+```
+
+**Required Variables:**
+
+```bash
+# OpenAI Configuration
+OPENAI_API_KEY=sk-your-key-here
+
+# Vector Store Configuration
+VECTOR_STORE_MODE=chroma  # or 'pinecone' for production
+
+# API Configuration
+API_HOST=0.0.0.0
+API_PORT=8000
+```
+
+**Optional but Recommended:**
+
+```bash
+# RAG System Configuration
+MAX_CORRECTIONS=2
+RETRIEVAL_TOP_K=5
+GENERATION_TEMPERATURE=0.2
+RELEVANCE_THRESHOLD=0.7
+
+# Observability
+LOG_LEVEL=INFO
+ENABLE_TRACING=false  # Set to true if using Jaeger
+ENABLE_METRICS=true
+OTEL_SERVICE_NAME=rag-finance-system
+
+# For Pinecone (production vector store)
+PINECONE_API_KEY=your-pinecone-key
+PINECONE_INDEX_NAME=financial-docs
+PINECONE_ENVIRONMENT=us-east-1
+```
+
+### Monitoring & Observability
+
+**Local Development (Docker Compose):**
+
+When running locally with Docker Compose, access these dashboards:
+
+| Service | URL | Default Credentials | Purpose |
+|---------|-----|---------------------|---------|
+| **API Swagger Docs** | http://localhost:8000/docs | N/A | API documentation & testing |
+| **Jaeger UI** | http://localhost:16686 | N/A | Distributed tracing |
+| **Prometheus** | http://localhost:9090 | N/A | Metrics collection & queries |
+| **Grafana** | http://localhost:3000 | admin/admin | Metrics visualization |
+
+**Production Deployment:**
+
+For Railway/Render deployments:
+
+1. **Application Logs:**
+   - **Railway**: Dashboard → Your Service → Logs
+   - **Render**: Dashboard → Your Service → Logs tab
+
+2. **Metrics & Monitoring:**
+   - Built-in metrics available in both Railway and Render dashboards
+   - CPU usage, memory, request count, response time
+
+3. **Custom Metrics (Production Setup):**
+   
+   To enable full observability in production:
+
+   **Option A: Managed Services (Recommended)**
+   
+   Use managed services for production-grade monitoring:
+   - **Jaeger**: Use [Jaeger Cloud](https://www.jaegertracing.io/) or [Grafana Cloud](https://grafana.com/products/cloud/)
+   - **Prometheus/Grafana**: Use [Grafana Cloud](https://grafana.com/products/cloud/) (free tier available)
+   
+   ```bash
+   # Set in Railway/Render environment variables
+   ENABLE_TRACING=true
+   OTEL_EXPORTER_OTLP_ENDPOINT=https://your-jaeger-endpoint:4318
+   ```
+
+   **Option B: Self-Hosted Monitoring Stack**
+   
+   Deploy monitoring services separately:
+   ```bash
+   # Deploy Grafana Cloud Agent
+   docker run -d \
+     -e GRAFANA_CLOUD_API_KEY=your-key \
+     grafana/agent:latest
+   ```
+
+4. **Health Check Endpoint:**
+   - Endpoint: `https://your-app-url.com/health`
+   - Returns: `{"status": "healthy", "version": "1.0.0"}`
+
+**Grafana Dashboard:**
+
+The pre-configured dashboard (`config/grafana/dashboards/rag-finance-overview.json`) includes:
+- Query latency (p50, p95, p99)
+- Token usage and costs
+- Self-correction rate
+- Request volume
+- Error rates
+
+### Cost Estimates & Optimization
+
+**OpenAI API Costs:**
+
+| Model | Usage | Cost per 1M tokens | Estimated Monthly |
+|-------|-------|-------------------|-------------------|
+| text-embedding-3-small | Embeddings | $0.02 | $1-5 |
+| gpt-4o-mini | Relevance & Fact-Check | $0.15 (input) / $0.60 (output) | $10-30 |
+| gpt-4-turbo | Generation | $10.00 (input) / $30.00 (output) | $50-150 |
+
+**Total Estimated Monthly Cost:**
+
+| Component | Railway | Render | Notes |
+|-----------|---------|--------|-------|
+| **Hosting** | $10-30 | $8-30 | Depends on traffic |
+| **OpenAI API** | $60-180 | $60-180 | 1000-5000 queries/month |
+| **Pinecone (optional)** | $0-70 | $0-70 | Serverless pricing |
+| **Monitoring (optional)** | $0-50 | $0-50 | Grafana Cloud free tier |
+| **Total** | **$70-330** | **$68-330** | Medium usage scenario |
+
+**Cost Optimization Tips:**
+
+1. **Use ChromaDB** for development and low-volume production (included in hosting)
+2. **Set rate limits** to prevent unexpected costs:
+   ```python
+   MAX_COST_PER_QUERY=0.50
+   MAX_TOKENS_PER_REQUEST=4000
+   ```
+3. **Cache frequently asked questions** (implement Redis caching)
+4. **Use gpt-4o-mini** for all agents if high volume (60% cost reduction)
+5. **Monitor usage** with built-in cost tracking in the API
+
+**Free Tier Options:**
+
+Both platforms offer free tiers for testing:
+- **Railway**: $5 credit (no credit card required)
+- **Render**: 750 hours/month free tier (with limitations)
+
+### Post-Deployment Checklist
+
+After deploying, verify:
+
+- [ ] Health check returns 200 OK: `curl https://your-app-url.com/health`
+- [ ] API docs accessible: `https://your-app-url.com/docs`
+- [ ] Environment variables set correctly
+- [ ] Test query works:
+  ```bash
+  curl -X POST https://your-app-url.com/query \
+    -H "Content-Type: application/json" \
+    -d '{"query": "What is this system?"}'
+  ```
+- [ ] Logs are flowing (check dashboard)
+- [ ] Set up monitoring alerts (optional)
+- [ ] Configure custom domain (optional)
+- [ ] Enable HTTPS (automatic on both platforms)
+
+### Troubleshooting
+
+**Common Issues:**
+
+1. **Build fails:**
+   - Check Dockerfile syntax
+   - Verify all files are committed to git
+   - Check build logs for missing dependencies
+
+2. **Health check fails:**
+   - Verify `API_PORT` matches platform expectations
+   - Check if `OPENAI_API_KEY` is set correctly
+   - Review application logs for startup errors
+
+3. **High costs:**
+   - Review token usage in logs
+   - Implement rate limiting
+   - Consider using gpt-4o-mini for all agents
+   - Add caching layer
+
+4. **Slow response times:**
+   - Check if using ChromaDB (slower than Pinecone)
+   - Reduce `RETRIEVAL_TOP_K` value
+   - Optimize chunking strategy
+   - Consider upgrading hosting plan
+
+**Need Help?**
+
+- Railway: [Discord Community](https://discord.gg/railway)
+- Render: [Community Forum](https://community.render.com/)
+- File an issue: [GitHub Issues](your-repo/issues)
+
+---
+
 ## 🎯 Roadmap
 
-- [ ] Complete multi-agent pipeline implementation
+- [x] Complete multi-agent pipeline implementation
+- [x] Add comprehensive testing suite
+- [x] Docker containerization with observability stack
+- [x] CI/CD pipeline with GitHub Actions
+- [x] Production deployment configurations (Railway/Render)
 - [ ] Add evaluation on FinQA dataset
 - [ ] Implement caching layer for repeated queries
 - [ ] Add streaming responses for long answers
-- [ ] Deploy to Railway/Render
 - [ ] Create demo video
+- [ ] Add rate limiting and API authentication
 
 ---
 

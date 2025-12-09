@@ -1,0 +1,73 @@
+# =============================================================================
+# Docker Compose Override for Local Development
+# =============================================================================
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+# =============================================================================
+# This file provides development-friendly overrides:
+#   - Hot reloading for code changes
+#   - Volume mounts for local development
+#   - Debug ports exposed
+#   - Development-specific environment variables
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # ===========================================================================
+  # RAG API - Development Overrides
+  # ===========================================================================
+  rag-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # Optional: Use cache for faster rebuilds
+      cache_from:
+        - rag-finance-api:latest
+    environment:
+      # Enable reload on code changes
+      - API_RELOAD=true
+      - LOG_LEVEL=DEBUG
+    volumes:
+      # Mount source code for hot reloading
+      - ./src:/app/src:ro
+      - ./scripts:/app/scripts:ro
+      # Mount data directory for development
+      - ./data:/app/data
+      # Keep Python cache in container
+      - /app/src/__pycache__
+    # Override command to enable auto-reload
+    command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
+    # Allow stdin for debugging
+    stdin_open: true
+    tty: true
+
+  # ===========================================================================
+  # Jaeger - Development Overrides
+  # ===========================================================================
+  jaeger:
+    environment:
+      # More verbose logging for development
+      - LOG_LEVEL=debug
+
+  # ===========================================================================
+  # Prometheus - Development Overrides
+  # ===========================================================================
+  prometheus:
+    # Shorter retention for development
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=7d'
+      - '--web.enable-lifecycle'
+
+  # ===========================================================================
+  # Grafana - Development Overrides
+  # ===========================================================================
+  grafana:
+    environment:
+      # Disable login for faster development
+      - GF_AUTH_DISABLE_LOGIN_FORM=false
+      # Enable development mode
+      - GF_LOG_LEVEL=debug
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/rag-finance-overview.json
+

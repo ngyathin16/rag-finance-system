@@ -1,0 +1,196 @@
+# =============================================================================
+# Docker Compose for RAG Finance System
+# =============================================================================
+# Services:
+#   - rag-api: FastAPI application (builds from Dockerfile)
+#   - jaeger: Distributed tracing (Jaeger all-in-one)
+#   - prometheus: Metrics collection and storage
+#   - grafana: Visualization and dashboards
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # ===========================================================================
+  # RAG Finance API Service
+  # ===========================================================================
+  rag-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag-finance-api
+    ports:
+      - "8000:8000"
+    environment:
+      # API Configuration
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      
+      # Vector Store Configuration
+      - VECTOR_STORE_MODE=chroma
+      
+      # RAG Configuration
+      - MAX_CORRECTIONS=2
+      
+      # OpenAI API Key (required)
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      
+      # Optional: Pinecone (for production vector store)
+      - PINECONE_API_KEY=${PINECONE_API_KEY:-}
+      
+      # OpenTelemetry Configuration
+      - OTEL_SERVICE_NAME=rag-finance-api
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+      - OTEL_TRACES_EXPORTER=otlp
+      - OTEL_METRICS_EXPORTER=prometheus
+      
+      # Logging
+      - LOG_LEVEL=INFO
+    volumes:
+      # Persist vector database
+      - chroma-data:/app/data/chroma_db
+      # Optional: Mount local data for development
+      # - ./data:/app/data
+    networks:
+      - rag-network
+    depends_on:
+      - jaeger
+      - prometheus
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ===========================================================================
+  # Jaeger Service (Distributed Tracing)
+  # ===========================================================================
+  jaeger:
+    image: jaegertracing/all-in-one:1.52
+    container_name: rag-jaeger
+    ports:
+      # Jaeger UI
+      - "16686:16686"
+      # OTLP gRPC receiver
+      - "4317:4317"
+      # OTLP HTTP receiver
+      - "4318:4318"
+      # Jaeger collector HTTP
+      - "14268:14268"
+      # Jaeger collector gRPC
+      - "14250:14250"
+      # Jaeger agent (for legacy clients)
+      - "6831:6831/udp"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - LOG_LEVEL=info
+    networks:
+      - rag-network
+    restart: unless-stopped
+
+  # ===========================================================================
+  # Prometheus Service (Metrics Collection)
+  # ===========================================================================
+  prometheus:
+    image: prom/prometheus:v2.48.1
+    container_name: rag-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      # Prometheus configuration
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # Persistent storage for metrics
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    networks:
+      - rag-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ===========================================================================
+  # Grafana Service (Visualization)
+  # ===========================================================================
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: rag-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      # Anonymous access enabled for demo
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_AUTH_BASIC_ENABLED=true
+      
+      # Default admin credentials (change in production!)
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      
+      # Server settings
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+      - GF_SERVER_DOMAIN=localhost
+      
+      # Feature toggles
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
+      
+      # Log settings
+      - GF_LOG_LEVEL=info
+    volumes:
+      # Datasources provisioning
+      - ./config/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      # Dashboards provisioning
+      - ./config/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      # Persistent storage
+      - grafana-data:/var/lib/grafana
+    networks:
+      - rag-network
+    depends_on:
+      - prometheus
+      - jaeger
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  rag-network:
+    driver: bridge
+    name: rag-network
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  # ChromaDB persistent storage
+  chroma-data:
+    driver: local
+    name: rag-chroma-data
+  
+  # Prometheus persistent storage
+  prometheus-data:
+    driver: local
+    name: rag-prometheus-data
+  
+  # Grafana persistent storage
+  grafana-data:
+    driver: local
+    name: rag-grafana-data
+
