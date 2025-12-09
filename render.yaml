@@ -69,13 +69,7 @@ services:
       sizeGB: 1
     
     # Docker will use CMD from Dockerfile - no startCommand needed
-    
-    # Resource limits
-    scaling:
-      minInstances: 1
-      maxInstances: 3
-      targetMemoryPercent: 80
-      targetCPUPercent: 80
+    # Note: autoscaling is not supported with disk attached
 
 # =============================================================================
 # Optional: Background Worker Service
