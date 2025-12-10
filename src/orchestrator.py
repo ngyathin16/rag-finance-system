@@ -115,7 +115,7 @@ class SelfCorrectingRAG:
     
     # Model configuration
     RELEVANCE_MODEL = "gpt-4o-mini"
-    GENERATOR_MODEL = "gpt-4-turbo-preview"
+    GENERATOR_MODEL = "gpt-4o"  # Updated from gpt-4-turbo-preview (70% cheaper, better quality)
     FACT_CHECK_MODEL = "gpt-4o-mini"
     
     def __init__(

@@ -138,13 +138,13 @@ class GeneratorAgent:
         >>> print(f"Cost: ${result['cost_usd']:.4f}")
     """
     
-    def __init__(self, model_name: str = "gpt-4-turbo-preview"):
+    def __init__(self, model_name: str = "gpt-4o"):
         """
         Initialize the GeneratorAgent.
         
         Args:
             model_name: Name of the OpenAI model to use for answer generation.
-                       Defaults to "gpt-4-turbo-preview" for high-quality generation.
+                       Defaults to "gpt-4o" for high-quality generation (70% cheaper, better performance).
         
         Raises:
             ValueError: If model_name is empty or None

@@ -64,7 +64,7 @@ class TokenCountingCallback(BaseCallbackHandler):
         total_tokens: Total tokens used (prompt + completion)
     """
     
-    def __init__(self, model_name: str = "gpt-4-turbo-preview"):
+    def __init__(self, model_name: str = "gpt-4o"):
         """
         Initialize the token counting callback.
         
@@ -203,7 +203,7 @@ class BaselineRAG:
     """
     
     # Model configuration
-    MODEL_NAME = "gpt-4-turbo-preview"
+    MODEL_NAME = "gpt-4o"  # Updated from gpt-4-turbo-preview for better performance and cost
     TEMPERATURE = 0.2
     DEFAULT_K = 5
     
