@@ -25,6 +25,8 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 # Configure logging
@@ -321,6 +323,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount static files
+try:
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+except RuntimeError:
+    logger.warning("Static directory not found, skipping static file mounting")
+
 
 @app.middleware("http")
 async def request_id_middleware(request: Request, call_next):
@@ -384,6 +392,15 @@ async def logging_middleware(request: Request, call_next):
 # =============================================================================
 # Endpoints
 # =============================================================================
+
+@app.get("/", include_in_schema=False)
+async def root():
+    """Serve the landing page."""
+    try:
+        return FileResponse("static/index.html")
+    except FileNotFoundError:
+        return {"message": "RAG Finance API", "docs": "/docs", "health": "/health"}
+
 
 @app.get("/health", response_model=HealthResponse, tags=["System"])
 async def health_check():
